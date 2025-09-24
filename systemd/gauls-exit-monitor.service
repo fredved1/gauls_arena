@@ -1,0 +1,35 @@
+[Unit]
+Description=Gauls Exit Monitor (SL/TP Monitor)
+Documentation=https://github.com/gauls-trading-system
+After=network.target gauls-telegram-listener.service
+PartOf=gauls-trading.target
+Requires=gauls-trading.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/gauls-copy-trading-system
+Environment="PATH=/gauls-copy-trading-system/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/gauls-copy-trading-system"
+ExecStart=/gauls-copy-trading-system/venv/bin/python /gauls-copy-trading-system/exit_monitor_v2.py
+
+# Restart configuration - Critical service
+Restart=always
+RestartSec=5
+StartLimitInterval=30s
+StartLimitBurst=10
+
+# Resource limits
+MemoryLimit=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=append:/gauls-copy-trading-system/logs/exit_monitor.log
+StandardError=append:/gauls-copy-trading-system/logs/exit_monitor_error.log
+
+# Health check
+ExecStartPre=/bin/bash -c 'mkdir -p /gauls-copy-trading-system/logs'
+
+[Install]
+WantedBy=gauls-trading.target

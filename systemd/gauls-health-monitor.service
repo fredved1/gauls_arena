@@ -1,0 +1,27 @@
+[Unit]
+Description=Gauls Trading System Health Monitor
+Documentation=https://github.com/gauls-trading-system
+After=gauls-trading.target
+Requires=gauls-trading.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/gauls-copy-trading-system
+Environment="PATH=/gauls-copy-trading-system/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/gauls-copy-trading-system"
+
+# Run health check every 5 minutes
+ExecStart=/bin/bash -c 'while true; do /gauls-copy-trading-system/venv/bin/python /gauls-copy-trading-system/check_system_health.py --json >> /gauls-copy-trading-system/logs/health.log 2>&1; sleep 300; done'
+
+# Restart configuration
+Restart=always
+RestartSec=30
+
+# Logging
+StandardOutput=append:/gauls-copy-trading-system/logs/health_monitor.log
+StandardError=append:/gauls-copy-trading-system/logs/health_monitor_error.log
+
+[Install]
+WantedBy=gauls-trading.target

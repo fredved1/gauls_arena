@@ -1,0 +1,8 @@
+[Unit]
+Description=Gauls Trading System Target
+Documentation=https://github.com/gauls-trading-system
+Requires=network-online.target
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target

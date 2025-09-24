@@ -1,0 +1,35 @@
+[Unit]
+Description=Gauls Trade Update Processor (1R/2R Handler)
+Documentation=https://github.com/gauls-trading-system
+After=network.target gauls-telegram-listener.service
+PartOf=gauls-trading.target
+Requires=gauls-trading.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/gauls-copy-trading-system
+Environment="PATH=/gauls-copy-trading-system/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/gauls-copy-trading-system"
+ExecStart=/gauls-copy-trading-system/venv/bin/python /gauls-copy-trading-system/gauls_trade_update_processor.py
+
+# Restart configuration
+Restart=always
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=5
+
+# Resource limits
+MemoryLimit=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=append:/gauls-copy-trading-system/logs/update_processor.log
+StandardError=append:/gauls-copy-trading-system/logs/update_processor_error.log
+
+# Health check
+ExecStartPre=/bin/bash -c 'mkdir -p /gauls-copy-trading-system/logs'
+
+[Install]
+WantedBy=gauls-trading.target

@@ -1,0 +1,26 @@
+[Unit]
+Description=Gauls Trading System Watchdog (Auto-Recovery)
+Documentation=https://github.com/gauls-trading-system
+After=gauls-trading.target
+Requires=gauls-trading.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/gauls-copy-trading-system
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Watchdog script that monitors and restarts failed services
+ExecStart=/bin/bash /gauls-copy-trading-system/systemd/watchdog.sh
+
+# Restart configuration
+Restart=always
+RestartSec=30
+
+# Logging
+StandardOutput=append:/gauls-copy-trading-system/logs/watchdog.log
+StandardError=append:/gauls-copy-trading-system/logs/watchdog_error.log
+
+[Install]
+WantedBy=gauls-trading.target
