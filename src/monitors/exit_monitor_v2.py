@@ -22,7 +22,7 @@ from core.unified_exchange import UnifiedExchange
 # Configure logging
 logger = logging.getLogger('EXIT_MONITOR_V2')
 logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler('logs/exit_monitor.log')
+handler = logging.FileHandler('/gauls-copy-trading-system/logs/exit_monitor.log')
 handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
 

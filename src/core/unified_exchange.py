@@ -125,6 +125,10 @@ class UnifiedExchange:
             return f"{symbol}:USDT"
         return symbol
     
+    def create_market_order(self, symbol: str, type: str, side: str, amount: float) -> Dict:
+        """Create a market order - wrapper for compatibility with exit monitor"""
+        return self.create_order(symbol, 'market', side, amount)
+    
     def create_order(self, symbol: str, order_type: str, side: str, amount: float, price: Optional[float] = None, leverage: Optional[int] = None) -> Dict:
         """Create order - works for both modes with leverage support"""
         
