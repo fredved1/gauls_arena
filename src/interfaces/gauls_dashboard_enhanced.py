@@ -205,14 +205,20 @@ def get_trades():
         conn = get_db_connection('trades')
         cursor = conn.cursor()
         
-        # Get open trades from database
+        # Get open trades from database with partial exit totals
         cursor.execute("""
-            SELECT id, symbol, side, entry_price, stop_loss, take_profit_1, take_profit_2,
-                   quantity, original_quantity, remaining_quantity, partial_exits_done, partial_pnl,
-                   entry_time, notes, leverage, status
-            FROM trades
-            WHERE status = 'open'
-            ORDER BY entry_time DESC
+            SELECT t.id, t.symbol, t.side, t.entry_price, t.stop_loss, t.take_profit_1, t.take_profit_2,
+                   t.quantity, t.original_quantity, t.remaining_quantity, t.partial_exits_done, t.partial_pnl,
+                   t.entry_time, t.notes, t.leverage, t.status,
+                   COALESCE(pe.total_exited_quantity, 0) as total_exited_quantity
+            FROM trades t
+            LEFT JOIN (
+                SELECT trade_id, SUM(quantity_exited) as total_exited_quantity
+                FROM partial_exits
+                GROUP BY trade_id
+            ) pe ON t.id = pe.trade_id
+            WHERE t.status = 'open'
+            ORDER BY t.entry_time DESC
         """)
         
         trades = []
@@ -227,10 +233,14 @@ def get_trades():
             exchange_pos = woox_positions.get(exchange_symbol) or woox_positions.get(symbol)
             
             if exchange_pos:
-                # Use exchange data for accurate P&L
+                # Use exchange data for accurate P&L and position size
                 trade['current_price'] = exchange_pos['current_price']
                 trade['unrealized_pnl'] = exchange_pos['unrealized_pnl']
                 trade['total_pnl'] = exchange_pos['unrealized_pnl'] + (trade['partial_pnl'] or 0)
+                
+                # Use live exchange position size instead of database remaining_quantity
+                trade['remaining_quantity'] = exchange_pos['contracts']
+                trade['live_position_size'] = exchange_pos['contracts']  # Add explicit field
                 
                 # Calculate percentage P&L based on entry price and current price
                 leverage = trade['leverage'] or 1.0

@@ -151,9 +151,9 @@ class GaulsCopyTrader:
                 FROM gauls_messages
                 WHERE timestamp > ?
                 AND (message_text LIKE '%Setup%' OR message_text LIKE '%setup%')
-                AND (message_text LIKE '%Entry:%' OR message_text LIKE '%ENTRY :%' OR message_text LIKE '%Entry :%' OR message_text LIKE '%Entry: %' OR message_text LIKE '%Entry: CMP%')
-                AND (message_text LIKE '%TP:%' OR message_text LIKE '%Target:%' OR message_text LIKE '%TARGET :%' OR message_text LIKE '%target:%' OR message_text LIKE '%TP: %')
-                AND (message_text LIKE '%SL:%' OR message_text LIKE '%Invalidation:%' OR message_text LIKE '%invalidation:%' OR message_text LIKE '%SL: %')
+                AND (message_text LIKE '%Entry:%' OR message_text LIKE '%ENTRY:%' OR message_text LIKE '%entry:%' OR message_text LIKE '%Entry %' OR message_text LIKE '%ENTRY %' OR message_text LIKE '%entry %' OR message_text LIKE '%Enter:%' OR message_text LIKE '%ENTER:%' OR message_text LIKE '%enter:%' OR message_text LIKE '%Buy:%' OR message_text LIKE '%BUY:%' OR message_text LIKE '%buy:%' OR message_text LIKE '%Long:%' OR message_text LIKE '%LONG:%' OR message_text LIKE '%long:%' OR message_text LIKE '%CMP:%' OR message_text LIKE '%Current:%' OR message_text LIKE '%CURRENT:%' OR message_text LIKE '%Market:%' OR message_text LIKE '%MARKET:%')
+                AND (message_text LIKE '%TP:%' OR message_text LIKE '%TP %' OR message_text LIKE '%Target:%' OR message_text LIKE '%Target %' OR message_text LIKE '%TARGET:%' OR message_text LIKE '%TARGET %' OR message_text LIKE '%target:%' OR message_text LIKE '%target %' OR message_text LIKE '%Take Profit:%' OR message_text LIKE '%Take profit:%' OR message_text LIKE '%TAKE PROFIT:%' OR message_text LIKE '%Profit Target:%' OR message_text LIKE '%PT:%' OR message_text LIKE '%PT %' OR message_text LIKE '%Final:%' OR message_text LIKE '%FINAL:%' OR message_text LIKE '%Exit:%' OR message_text LIKE '%EXIT:%' OR message_text LIKE '%Sell:%' OR message_text LIKE '%SELL:%')
+                AND (message_text LIKE '%SL:%' OR message_text LIKE '%SL %' OR message_text LIKE '%Stop Loss:%' OR message_text LIKE '%Stop loss:%' OR message_text LIKE '%STOP LOSS:%' OR message_text LIKE '%Stop-Loss:%' OR message_text LIKE '%StopLoss:%' OR message_text LIKE '%Invalidation:%' OR message_text LIKE '%invalidation:%' OR message_text LIKE '%INVALIDATION:%' OR message_text LIKE '%Cut Loss:%' OR message_text LIKE '%Cut loss:%' OR message_text LIKE '%CUT LOSS:%' OR message_text LIKE '%Risk:%' OR message_text LIKE '%RISK:%' OR message_text LIKE '%Exit SL:%' OR message_text LIKE '%Stop:%' OR message_text LIKE '%STOP:%' OR message_text LIKE '%Loss:%' OR message_text LIKE '%LOSS:%')
                 ORDER BY timestamp DESC
             ''', (cutoff_time,))
             additional_rows = cursor.fetchall()
@@ -784,16 +784,17 @@ class GaulsCopyTrader:
             
             cursor.execute('''
                 INSERT INTO trades (
-                    symbol, side, entry_price, entry_time, quantity, status, 
+                    symbol, side, entry_price, entry_time, quantity, remaining_quantity, status, 
                     strategy, notes, stop_loss, take_profit_1, take_profit_2, 
                     leverage, risk_reward, trade_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 signal['symbol'],
                 signal['side'],
                 entry_price,
                 datetime.now().isoformat(),
                 order['amount'],
+                order['amount'],  # Set remaining_quantity = quantity initially
                 status,
                 'gauls_copy',  # Special strategy tag
                 base_notes,  # Enhanced notes with LLM insights

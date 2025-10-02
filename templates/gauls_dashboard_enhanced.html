@@ -735,13 +735,13 @@
                     <div class="detail-item">
                         <span class="detail-label">Position Size:</span>
                         <span class="detail-value" style="color: #FFD700; font-weight: bold;">
-                            ${parseFloat(trade.remaining_quantity || trade.quantity || 0).toFixed(4)} units
+                            ${parseFloat(trade.live_position_size || trade.remaining_quantity || trade.quantity || 0).toFixed(4)} units
                         </span>
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">Position Value:</span>
                         <span class="detail-value" style="color: #FFD700;">
-                            $${(((trade.remaining_quantity || trade.quantity) || 0) * (trade.current_price || trade.entry_price)).toFixed(2)}
+                            $${(((trade.live_position_size || trade.remaining_quantity || trade.quantity) || 0) * (trade.current_price || trade.entry_price)).toFixed(2)}
                         </span>
                     </div>
                     <div class="detail-item">
@@ -976,8 +976,28 @@
         
         function createPositionProgress(trade) {
             const originalQty = trade.original_quantity || trade.quantity;
-            const remainingQty = trade.remaining_quantity || trade.quantity;
-            const exitedQty = originalQty - remainingQty;
+            
+            // Use live exchange position size if available, otherwise fallback to database
+            let remainingQty = trade.live_position_size || trade.remaining_quantity;
+            let exitedQty = 0;
+            
+            if (trade.partial_exits_done > 0 && (remainingQty === null || remainingQty === undefined)) {
+                // Calculate remaining quantity from partial exits data if available
+                if (trade.total_exited_quantity) {
+                    exitedQty = trade.total_exited_quantity;
+                    remainingQty = originalQty - exitedQty;
+                } else {
+                    // Fallback: if we don't have exit data, use the original quantity
+                    remainingQty = originalQty;
+                    exitedQty = 0;
+                }
+            } else if (remainingQty === null || remainingQty === undefined) {
+                remainingQty = originalQty;
+                exitedQty = 0;
+            } else {
+                exitedQty = originalQty - remainingQty;
+            }
+            
             const exitedPct = (exitedQty / originalQty * 100).toFixed(0);
             const remainingPct = (remainingQty / originalQty * 100).toFixed(0);
             

@@ -24,8 +24,8 @@ class GaulsSignalParser:
             'symbol': re.compile(r'\$?([A-Z]{2,10})\s*.*(?:Setup|buying|Buying)', re.IGNORECASE),
             'entry_price': re.compile(r'(?:Entry|ENTRY)\s*:\s*\$?([0-9]+\.?[0-9]*|CMP)(?:\s+down\s+to\s+\$?([0-9]+\.?[0-9]*))?', re.IGNORECASE),
             'entry_hint': re.compile(r'(?:Entry|ENTRY)\s*:\s*\$?[0-9]+\.?[0-9]*\s*\(([^)]+)\)', re.IGNORECASE),
-            'take_profit': re.compile(r'(?:TP|Target|TARGET)\s*:\s*\$?([0-9]+\.?[0-9]*)(x?)', re.IGNORECASE),
-            'stop_loss': re.compile(r'(?:SL|Invalidation)\s*:\s*\$?([0-9]+\.?[0-9]*)', re.IGNORECASE),
+            'take_profit': re.compile(r'(?:TP|Target|TARGET|target|Take Profit|Take profit|TAKE PROFIT|Profit Target|PT|Final|FINAL|Exit|EXIT|Sell|SELL)\s*:\s*\$?([0-9]+\.?[0-9]*)(x?)', re.IGNORECASE),
+            'stop_loss': re.compile(r'(?:SL|Stop Loss|Stop loss|STOP LOSS|Stop-Loss|StopLoss|Invalidation|invalidation|INVALIDATION|Cut Loss|Cut loss|CUT LOSS|Risk|RISK|Exit SL|Stop|STOP|Loss|LOSS)\s*:\s*\$?([0-9]+\.?[0-9]*)', re.IGNORECASE),
             'risk_reward': re.compile(r'RR\s*:\s*([0-9]+\.?[0-9]*)', re.IGNORECASE),
             'buying_setup': re.compile(r'buying\s+setup|Buying\s+Setup', re.IGNORECASE),
         }

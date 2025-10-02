@@ -38,12 +38,19 @@ class GaulsTradeUpdateProcessor:
         self.processed_updates = set()
         self.load_processed_updates()
         
-        # Update patterns to detect - Enhanced to catch fractional R values
+        # Update patterns to detect - Enhanced for multi-symbol updates
         self.update_patterns = {
-            'r_profit': re.compile(r'(\d+\.?\d*)R\s+(locked|done|reached|secured|taken)', re.IGNORECASE),
-            'risk_free': re.compile(r'risk.?free|move.?sl.?to.?entry|sl.?to.?breakeven|trade.*risk.free', re.IGNORECASE),
+            # Split into action words (trigger partial) vs info words (no partial)
+            'r_action': re.compile(r'(\d+\.?\d*)R\s+(locked|done|reached|secured|taken)', re.IGNORECASE),
+            'r_info': re.compile(r'(\d+\.?\d*)R\s+(?:profit\s+)?running', re.IGNORECASE),
+            'risk_free': re.compile(r'risk.?free|move.*?(?:sl|stop.*?loss).*?(?:to|at).*?(?:entry|breakeven)|sl.?to.?breakeven|trade.*risk.free|moving.*?stop.*?to.*?entry', re.IGNORECASE),
             'book_partial': re.compile(r'book\s+(\d+)%|take\s+(\d+)%|partial.*(\d+)%', re.IGNORECASE),
-            'full_exit': re.compile(r'close|exit|out|done', re.IGNORECASE)
+            'full_exit': re.compile(r'close|exit|out|done', re.IGNORECASE),
+            # New patterns for multi-symbol updates
+            'symbol_line': re.compile(r'(?:👉🏻|•|-)\s*\$([A-Z]{2,10})\s*[—–-]\s*(.+?)(?=\n|👉|$)', re.MULTILINE | re.DOTALL),
+            'both_all': re.compile(r'\b(?:both|all)\s+(?:trades?|positions?)\b', re.IGNORECASE),
+            'let_cook': re.compile(r'let(?:ting)?\s+(?:the\s+)?(?:final\s+)?targets?\s+cook|patience|hold', re.IGNORECASE),
+            'entries_filled': re.compile(r'(?:both\s+)?entries?\s+filled', re.IGNORECASE)
         }
         
     def load_processed_updates(self):
@@ -94,41 +101,127 @@ class GaulsTradeUpdateProcessor:
                 await self.process_update_message(message_text, timestamp, message_hash)
                 
     async def process_update_message(self, message_text: str, timestamp: str, message_hash: int):
-        """Process a Gauls trade update message"""
-        # Extract symbol from message (with or without $ sign, prioritize $ prefixed symbols)
-        symbol_match = re.search(r'\$([A-Z]{2,10})', message_text, re.IGNORECASE)
-        if not symbol_match:
-            # Fallback to look for symbol before UPDATE/TRADE keywords
-            symbol_match = re.search(r'([A-Z]{2,10})(?=\s*(UPDATE|TRADE|:))', message_text, re.IGNORECASE)
-        if not symbol_match:
-            return
-            
-        symbol = f"{symbol_match.group(1)}/USDT"
+        """Process a Gauls trade update message (handles multi-symbol)"""
+        # Check if this is a multi-symbol update
+        symbol_updates = self.extract_symbol_updates(message_text)
         
-        # Find matching open trades
-        trades = await self.get_matching_trades(symbol)
-        if not trades:
-            logger.info(f"📭 No open trades found for {symbol} update")
-            return
+        if not symbol_updates:
+            # Fallback to single symbol extraction
+            symbol_match = re.search(r'\$([A-Z]{2,10})', message_text, re.IGNORECASE)
+            if not symbol_match:
+                symbol_match = re.search(r'([A-Z]{2,10})(?=\s*(UPDATE|TRADE|:))', message_text, re.IGNORECASE)
+            if not symbol_match:
+                return
             
-        # Determine action based on message content
-        action = self.determine_action(message_text)
+            symbol_updates = {symbol_match.group(1): {'r_value': None, 'r_action': None}}
         
-        if action:
-            logger.info(f"🎯 Processing Gauls update for {symbol}: {action['type']}")
+        # Check for generic instructions that apply to all symbols
+        generic_instructions = self.extract_generic_instructions(message_text)
+        
+        # Process each symbol
+        for symbol, symbol_data in symbol_updates.items():
+            symbol_usdt = f"{symbol}/USDT"
             
-            for trade in trades:
-                success = await self.execute_action(trade, action)
+            # Find matching open trades
+            trades = await self.get_matching_trades(symbol_usdt)
+            if not trades:
+                logger.info(f"📭 No open trades found for {symbol_usdt} update")
+                continue
+            
+            # Determine action based on message content and generic instructions
+            action = self.determine_action_enhanced(message_text, symbol_data, generic_instructions)
+            
+            if action:
+                logger.info(f"🎯 Processing Gauls update for {symbol_usdt}: {action['type']}")
                 
-                if success:
-                    # Mark as processed
-                    self.mark_as_processed(message_hash, symbol, action['type'])
-                    logger.info(f"✅ Successfully processed {action['type']} for {symbol} trade #{trade['id']}")
+                for trade in trades:
+                    success = await self.execute_action(trade, action)
                     
+                    if success:
+                        # Mark as processed
+                        self.mark_as_processed(message_hash, symbol_usdt, action['type'])
+                        logger.info(f"✅ Successfully processed {action['type']} for {symbol_usdt} trade #{trade['id']}")
+                    
+    def extract_symbol_updates(self, message_text: str) -> Dict:
+        """Extract all symbols and their individual updates"""
+        updates = {}
+        
+        # Look for symbol-specific lines (e.g., "👉🏻 $SOL — ...")
+        for match in self.update_patterns['symbol_line'].finditer(message_text):
+            symbol = match.group(1)
+            content = match.group(2)
+            
+            # Extract R value for this symbol - check both action and info patterns
+            r_match = self.update_patterns['r_action'].search(content)
+            is_action_word = True
+            if not r_match:
+                r_match = self.update_patterns['r_info'].search(content)
+                is_action_word = False
+            
+            r_value = float(r_match.group(1)) if r_match else None
+            # Group 2 only exists for r_action pattern
+            if r_match and is_action_word and len(r_match.groups()) > 1:
+                r_action = r_match.group(2).lower()
+            elif r_match and not is_action_word:
+                r_action = 'running'  # Info pattern means "running"
+            else:
+                r_action = None
+            
+            updates[symbol] = {
+                'r_value': r_value,
+                'r_action': r_action,
+                'content': content
+            }
+        
+        return updates
+    
+    def extract_generic_instructions(self, message_text: str) -> Dict:
+        """Extract instructions that apply to all symbols"""
+        instructions = {}
+        
+        # Check for "both/all trades should be risk-free"
+        has_risk_free = bool(self.update_patterns['risk_free'].search(message_text))
+        has_both_all = bool(self.update_patterns['both_all'].search(message_text))
+        
+        if has_risk_free and has_both_all:
+            instructions['all_risk_free'] = True
+        
+        # Check for "let targets cook" / hold instructions
+        if self.update_patterns['let_cook'].search(message_text):
+            instructions['let_cook'] = True
+            instructions['no_partial_exit'] = True
+        
+        return instructions
+    
+    def determine_action_enhanced(self, message_text: str, symbol_data: Dict, generic_instructions: Dict) -> Optional[Dict]:
+        """Enhanced action determination with generic instruction support"""
+        
+        # Priority 1: Check for generic risk-free instruction
+        if generic_instructions.get('all_risk_free'):
+            action = {
+                'type': 'risk_free_generic',
+                'move_sl_to': 'breakeven'
+            }
+            
+            # IMPORTANT: Only add partial exit if explicitly NOT "let cook"
+            # "Risk-free" alone doesn't mean take profit!
+            if generic_instructions.get('let_cook') or generic_instructions.get('no_partial_exit'):
+                # Explicitly told to let targets cook - NO partial exit
+                pass  # No partial_percent added
+            else:
+                # Only if there's NO "let cook" instruction, check for standard R-based partial
+                # But this should be rare - usually risk-free just means move SL
+                pass  # Don't automatically add 40% - let explicit instructions handle it
+            
+            return action
+        
+        # Priority 2: Use standard determination for specific R values
+        return self.determine_action(message_text)
+    
     def determine_action(self, message_text: str) -> Optional[Dict]:
         """Determine what action to take based on message"""
-        # Check for R profit pattern (e.g., "1.25R locked")
-        r_match = self.update_patterns['r_profit'].search(message_text)
+        # Check for R ACTION pattern (e.g., "1.25R locked") - these trigger partial exits
+        r_match = self.update_patterns['r_action'].search(message_text)
         if r_match:
             r_value = float(r_match.group(1))
             
@@ -165,11 +258,21 @@ class GaulsTradeUpdateProcessor:
                 
         # Check for risk-free instruction
         if self.update_patterns['risk_free'].search(message_text):
-            return {
+            action = {
                 'type': 'make_risk_free',
-                'partial_percent': 40,  # Default to 40% to cover risk
                 'move_sl_to': 'breakeven'
             }
+            # Don't automatically add partial exit!
+            # Risk-free means move SL to breakeven, not necessarily take profit
+            # Only add partial if explicitly mentioned elsewhere in the message
+            if self.update_patterns['book_partial'].search(message_text):
+                book_match = self.update_patterns['book_partial'].search(message_text)
+                if book_match:
+                    for group in book_match.groups():
+                        if group and group.isdigit():
+                            action['partial_percent'] = int(group)
+                            break
+            return action
             
         # Check for full exit
         if self.update_patterns['full_exit'].search(message_text) and 'update' in message_text.lower():

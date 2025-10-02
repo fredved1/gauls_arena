@@ -118,16 +118,22 @@ class EnhancedExitMonitor:
                 )
                 return f"🎯 TP2 Hit @ ${current_price:.4f} - {self.tp2_exit_percent*100:.0f}% closed, stop→TP1"
             
-            # TP1 Check (first partial exit)
+            # TP1 Check - Full closure if no meaningful TP2, otherwise partial exit
             if partial_exits == 0 and tp1 and current_price >= tp1:
-                await self.execute_partial_exit(
-                    trade_id=trade_id,
-                    exit_price=current_price,
-                    exit_percent=self.tp1_exit_percent,
-                    tp_level=1,
-                    new_stop_loss=entry_price  # FREE TRADE!
-                )
-                return f"🎯 TP1 Hit @ ${current_price:.4f} - {self.tp1_exit_percent*100:.0f}% closed, stop→entry (FREE TRADE!)"
+                # If TP2 is 0 or very close to TP1, close fully at TP1 (Gauls standard)
+                if not tp2 or tp2 <= 0.01 or abs(tp2 - tp1) < (tp1 * 0.02):
+                    await self.close_remaining_position(trade_id, current_price, "TP1 Target Reached - Full Exit")
+                    return f"🎯 TP1 FULL EXIT @ ${current_price:.4f} - Position closed completely"
+                else:
+                    # Multiple TP levels - do partial exit
+                    await self.execute_partial_exit(
+                        trade_id=trade_id,
+                        exit_price=current_price,
+                        exit_percent=self.tp1_exit_percent,
+                        tp_level=1,
+                        new_stop_loss=entry_price  # FREE TRADE!
+                    )
+                    return f"🎯 TP1 Hit @ ${current_price:.4f} - {self.tp1_exit_percent*100:.0f}% closed, stop→entry (FREE TRADE!)"
         
         # SHORT positions
         else:
@@ -152,16 +158,22 @@ class EnhancedExitMonitor:
                 )
                 return f"🎯 TP2 Hit @ ${current_price:.4f} - {self.tp2_exit_percent*100:.0f}% closed, stop→TP1"
             
-            # TP1 Check for shorts
+            # TP1 Check for shorts - Full closure if no meaningful TP2, otherwise partial exit
             if partial_exits == 0 and tp1 and current_price <= tp1:
-                await self.execute_partial_exit(
-                    trade_id=trade_id,
-                    exit_price=current_price,
-                    exit_percent=self.tp1_exit_percent,
-                    tp_level=1,
-                    new_stop_loss=entry_price
-                )
-                return f"🎯 TP1 Hit @ ${current_price:.4f} - {self.tp1_exit_percent*100:.0f}% closed, stop→entry (FREE TRADE!)"
+                # If TP2 is 0 or very close to TP1, close fully at TP1 (Gauls standard)
+                if not tp2 or tp2 <= 0.01 or abs(tp1 - tp2) < (tp1 * 0.02):
+                    await self.close_remaining_position(trade_id, current_price, "TP1 Target Reached - Full Exit")
+                    return f"🎯 TP1 FULL EXIT @ ${current_price:.4f} - Position closed completely"
+                else:
+                    # Multiple TP levels - do partial exit
+                    await self.execute_partial_exit(
+                        trade_id=trade_id,
+                        exit_price=current_price,
+                        exit_percent=self.tp1_exit_percent,
+                        tp_level=1,
+                        new_stop_loss=entry_price
+                    )
+                    return f"🎯 TP1 Hit @ ${current_price:.4f} - {self.tp1_exit_percent*100:.0f}% closed, stop→entry (FREE TRADE!)"
         
         return None
     
