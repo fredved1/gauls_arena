@@ -45,7 +45,7 @@ class GaulsTradeUpdateProcessor:
             'r_info': re.compile(r'(\d+\.?\d*)R\s+(?:profit\s+)?running', re.IGNORECASE),
             'risk_free': re.compile(r'risk.?free|move.*?(?:sl|stop.*?loss).*?(?:to|at).*?(?:entry|breakeven)|sl.?to.?breakeven|trade.*risk.free|moving.*?stop.*?to.*?entry', re.IGNORECASE),
             'book_partial': re.compile(r'book\s+(\d+)%|take\s+(\d+)%|partial.*(\d+)%', re.IGNORECASE),
-            'full_exit': re.compile(r'close|exit|out|done', re.IGNORECASE),
+            'full_exit': re.compile(r'clos(?:e|ing)\s+(?:it\s+)?here|exit|out|done', re.IGNORECASE),
             # New patterns for multi-symbol updates
             'symbol_line': re.compile(r'(?:👉🏻|•|-)\s*\$([A-Z]{2,10})\s*[—–-]\s*(.+?)(?=\n|👉|$)', re.MULTILINE | re.DOTALL),
             'both_all': re.compile(r'\b(?:both|all)\s+(?:trades?|positions?)\b', re.IGNORECASE),
@@ -274,8 +274,8 @@ class GaulsTradeUpdateProcessor:
                             break
             return action
             
-        # Check for full exit
-        if self.update_patterns['full_exit'].search(message_text) and 'update' in message_text.lower():
+        # Check for full exit - allow closing instructions in trade updates
+        if self.update_patterns['full_exit'].search(message_text):
             return {
                 'type': 'full_exit',
                 'partial_percent': 100
@@ -320,9 +320,10 @@ class GaulsTradeUpdateProcessor:
         try:
             symbol = trade['symbol']
             remaining_qty = trade['remaining_quantity']
-            
-            # Calculate partial quantity
-            partial_qty = remaining_qty * (action['partial_percent'] / 100)
+
+            # Calculate partial quantity (default to 0 if not specified)
+            partial_percent = action.get('partial_percent', 0)
+            partial_qty = remaining_qty * (partial_percent / 100)
             
             if partial_qty > 0:
                 # Get current price
@@ -330,8 +331,8 @@ class GaulsTradeUpdateProcessor:
                 current_price = ticker['last']
                 
                 # Execute partial close
-                if action['partial_percent'] < 100:
-                    logger.info(f"📊 Taking {action['partial_percent']}% partial on {symbol}")
+                if partial_percent < 100:
+                    logger.info(f"📊 Taking {partial_percent}% partial on {symbol}")
                     
                     # Place market sell order for partial
                     order = self.exchange.create_order(
